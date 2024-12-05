@@ -270,7 +270,7 @@ class VAE_decode_multiview(nn.Module):
 
 class Diffusion_FFPE(nn.Module):
     def __init__(self, pretrained_path=None, model_path="stabilityai/sd-turbo", lora_rank_unet=128, lora_rank_vae=4,
-                 gradient_checkpointing=False, enable_xformers_memory_efficient_attention=False, multi_view=True):
+                 gradient_checkpointing=True, enable_xformers_memory_efficient_attention=True, multi_view=True):
 
         super().__init__()
 

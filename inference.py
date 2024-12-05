@@ -7,7 +7,11 @@ from tqdm import tqdm
 from torchvision import transforms
 from diffusion_ffpe.model import Diffusion_FFPE, initialize_text_encoder
 from diffusion_ffpe.my_utils import build_transform
+from torch.cuda.amp import autocast
 
+
+Image.MAX_IMAGE_PIXELS = 10000000000  # 10 billion pixels
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 def parse_args_inference():
     parser = argparse.ArgumentParser()
@@ -29,13 +33,14 @@ def main(args):
 
     # initialize the model
     model = Diffusion_FFPE(pretrained_path=args.pretrained_path, model_path=args.model_path,
-                           enable_xformers_memory_efficient_attention=True)
+                        enable_xformers_memory_efficient_attention=True)
+    model = model.half()
     model.cuda()
     model.eval()
 
     tokenizer, text_encoder = initialize_text_encoder(args.model_path)
     a2b_tokens = tokenizer(args.prompt, max_length=tokenizer.model_max_length, padding="max_length",
-                           truncation=True, return_tensors="pt").input_ids[0]
+                        truncation=True, return_tensors="pt").input_ids[0]
     text_emb = text_encoder(a2b_tokens.cuda().unsqueeze(0))[0].detach().cuda()
 
     T_val = build_transform(args.image_prep)
@@ -43,7 +48,8 @@ def main(args):
     for path in tqdm(paths):
         input_image = Image.open(path).convert('RGB')
         # translate the image
-        with torch.no_grad():
+        with torch.no_grad(), autocast():
+            torch.cuda.empty_cache()
             input_img = T_val(input_image)
             x_t = transforms.ToTensor()(input_img)
             x_t = transforms.Normalize([0.5], [0.5])(x_t).unsqueeze(0).cuda()
