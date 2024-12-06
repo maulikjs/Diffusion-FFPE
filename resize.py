@@ -1,16 +1,18 @@
 from PIL import Image
-import os
 
+# Open the TIFF image
+input_path = 'stitched_image_compressed.tiff'
+output_path = 'resized_image.tiff'
 Image.MAX_IMAGE_PIXELS = 10000000000  # 10 billion pixels
 
-input_dir = "./"
-output_dir = "./resizedData/"
-os.makedirs(output_dir, exist_ok=True)
+# Open the image
+with Image.open(input_path) as img:
+    # Resize the image 
+    # Using Image.LANCZOS (formerly Image.ANTIALIAS) for high-quality downsampling
+    resized_img = img.resize((11776*2, 9408*2), Image.LANCZOS)
+    
+    # Save the resized image
+    # Preserve the compression and other metadata if possible
+    resized_img.save(output_path, compression='tiff_lzw')
 
-for img_file in os.listdir(input_dir):
-    if img_file.endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
-        img_path = os.path.join(input_dir, img_file)
-        img = Image.open(img_path)
-        img = img.resize((1024, 1024))  # Resize to 1024x1024 or smaller
-        img.save(os.path.join(output_dir, img_file))
-
+print(f"Image resized and saved to {output_path}")
