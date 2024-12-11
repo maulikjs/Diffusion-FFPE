@@ -1,7 +1,7 @@
 from PIL import Image
 
 # Open the TIFF image
-input_path = 'stitched_image_compressed.tiff'
+input_path = 'stitched_output.tiff'
 output_path = 'resized_image.tiff'
 Image.MAX_IMAGE_PIXELS = 10000000000  # 10 billion pixels
 
@@ -9,7 +9,7 @@ Image.MAX_IMAGE_PIXELS = 10000000000  # 10 billion pixels
 with Image.open(input_path) as img:
     # Resize the image 
     # Using Image.LANCZOS (formerly Image.ANTIALIAS) for high-quality downsampling
-    resized_img = img.resize((11776*2, 9408*2), Image.LANCZOS)
+    resized_img = img.resize((int(143432/8), int(83382/8)), Image.LANCZOS)
     
     # Save the resized image
     # Preserve the compression and other metadata if possible
