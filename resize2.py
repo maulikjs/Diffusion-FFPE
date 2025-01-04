@@ -1,7 +1,7 @@
 import pyvips
 
 # Open the large TIFF in streaming mode
-image = pyvips.Image.new_from_file("testData/svstest.svs", access="sequential")
+image = pyvips.Image.new_from_file("stitched_output.tiff", access="sequential")
 
 # Resize by a factor of 0.1 (1/10th)
 # The `resize` method scales the image dimensions by the given factor.

@@ -77,7 +77,7 @@ def main():
                             num_workers=args.num_workers, pin_memory=True, drop_last=False)
 
     dist.barrier()
-    progress = tqdm(dataloader, desc=f"Rank {rank}", disable=(rank != 0))
+    progress = tqdm(dataloader, desc=f"Rank {rank}", disable=False)
 
     with torch.no_grad(), autocast('cuda'):
         for x_t, widths, heights, filenames in progress:
@@ -95,8 +95,7 @@ def main():
                 output_pil = transforms.ToPILImage()(out_img.cpu())
                 output_pil = output_pil.resize((w.item(), h.item()))
                 save_path = os.path.join(args.output_path, fname)
-                if rank == 0:
-                    output_pil.save(save_path)
+                output_pil.save(save_path)
 
     dist.barrier()
     dist.destroy_process_group()
