@@ -134,12 +134,12 @@ def initialize_vae(rank=4, model_path="stabilityai/sd-turbo", return_lora_module
     # add the skip connection convs
     vae.decoder.skip_conv_1 = torch.nn.Conv2d(512, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)\
         .cuda().requires_grad_(True)
-    vae.decoder.skip_conv_2 = torch.nn.Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False).\
-        cuda().requires_grad_(True)
-    vae.decoder.skip_conv_3 = torch.nn.Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False).\
-        cuda().requires_grad_(True)
-    vae.decoder.skip_conv_4 = torch.nn.Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False).\
-        cuda().requires_grad_(True)
+    vae.decoder.skip_conv_2 = torch.nn.Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)\
+        .cuda().requires_grad_(True)
+    vae.decoder.skip_conv_3 = torch.nn.Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)\
+        .cuda().requires_grad_(True)
+    vae.decoder.skip_conv_4 = torch.nn.Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)\
+        .cuda().requires_grad_(True)
     torch.nn.init.constant_(vae.decoder.skip_conv_1.weight, 1e-5)
     torch.nn.init.constant_(vae.decoder.skip_conv_2.weight, 1e-5)
     torch.nn.init.constant_(vae.decoder.skip_conv_3.weight, 1e-5)
@@ -199,19 +199,30 @@ class VAE_encode_multiview(nn.Module):
             _vae = self.vae_b2a
             _vae_patch = self.vae_b2a_patch
 
+        B, _c1, _h1, _w1 = x.shape
+
+        # Encode full image
         h1 = _vae.encoder(x)
-        _, _c1, _h1, _w1 = x.shape
         _, _c2, _h2, _w2 = h1.shape
 
-        x_patch = x.unfold(2, _h1//patch_num, _w1//patch_num).unfold(3, _h1//patch_num, _w1//patch_num)
+        # Extract patches from x
+        x_patch = x.unfold(2, _h1//patch_num, _h1//patch_num).unfold(3, _h1//patch_num, _h1//patch_num)
         x_patch = x_patch.permute(0, 2, 3, 1, 4, 5).reshape(-1, _c1, _h1//patch_num, _w1//patch_num)
+        # x_patch: [B*patch_num^2, _c1, H', W']
 
+        # Encode patches
         h2 = _vae_patch.encoder(x_patch)
-        h2 = h2.view(patch_num, patch_num, _c2, _h2//patch_num, _w2//patch_num).permute(2, 0, 3, 1, 4)
-        h2 = h2.contiguous().view(_c2, _h2, _w2).unsqueeze(0)
+        # h2: [B*patch_num^2, _c2, _h2/patch_num, _w2/patch_num]
 
+        # Reshape h2 back into [B, _c2, _h2, _w2]
+        h2 = h2.view(B, patch_num, patch_num, _c2, _h2 // patch_num, _w2 // patch_num)
+        h2 = h2.permute(0, 3, 1, 4, 2, 5).contiguous()
+        h2 = h2.view(B, _c2, _h2, _w2)
+
+        # Combine h1 and h2
         h = h1 + h2
 
+        # Convert to posterior
         moments = _vae.quant_conv(h)
         posterior = DiagonalGaussianDistribution(moments)
 
@@ -244,7 +255,7 @@ class VAE_decode_multiview(nn.Module):
         self.vae_patch = vae_enc.vae_patch
         self.vae_b2a_patch = vae_enc.vae_b2a_patch
 
-    def forward(self, x, direction="a2b", patch_num=4):
+    def forward(self, x, direction="a2b", patch_num=16):
         assert direction in ["a2b", "b2a"]
         if direction == "a2b":
             _vae = self.vae
@@ -256,12 +267,17 @@ class VAE_decode_multiview(nn.Module):
         assert _vae.encoder.current_down_blocks is not None
         assert _vae_patch.encoder.current_down_blocks is not None
 
+        B = x.shape[0]  # Batch size from the input x
         skip = []
         for h1, h2 in zip(_vae.encoder.current_down_blocks, _vae_patch.encoder.current_down_blocks):
             _, c, h, w = h1.shape
-            h2 = h2.view(patch_num, patch_num, c, h//patch_num, w//patch_num).permute(2, 0, 3, 1, 4)
-            h2 = h2.contiguous().view(c, h, w).unsqueeze(0)
-            skip.append(h1+h2)
+            # Now reshape h2 considering batch dimension B
+            # h2 is expected to be [B*patch_num^2, c, h/patch_num, w/patch_num]
+            h2 = h2.view(B, patch_num, patch_num, c, h//patch_num, w//patch_num)
+            h2 = h2.permute(0, 3, 1, 4, 2, 5).contiguous() 
+            # Now h2 is [B, c, patch_num, h//patch_num, patch_num, w//patch_num]
+            h2 = h2.view(B, c, h, w)
+            skip.append(h1 + h2)
 
         _vae.decoder.incoming_skip_acts = skip
         x_decoded = _vae.decode(x / _vae.config.scaling_factor).sample.clamp(-1, 1)
@@ -321,10 +337,10 @@ class Diffusion_FFPE(nn.Module):
                 assert p.requires_grad
                 params_gen.append(p)
 
-        params_gen = params_gen + list(vae_a2b.decoder.skip_conv_1.parameters())
-        params_gen = params_gen + list(vae_a2b.decoder.skip_conv_2.parameters())
-        params_gen = params_gen + list(vae_a2b.decoder.skip_conv_3.parameters())
-        params_gen = params_gen + list(vae_a2b.decoder.skip_conv_4.parameters())
+        params_gen.extend(list(vae_a2b.decoder.skip_conv_1.parameters()))
+        params_gen.extend(list(vae_a2b.decoder.skip_conv_2.parameters()))
+        params_gen.extend(list(vae_a2b.decoder.skip_conv_3.parameters()))
+        params_gen.extend(list(vae_a2b.decoder.skip_conv_4.parameters()))
 
         # add all vae_b2a parameters
         vae_b2a = self.vae_enc.vae_b2a
@@ -332,10 +348,10 @@ class Diffusion_FFPE(nn.Module):
             if "lora" in n and "vae_skip" in n and 'decoder.skip_conv' not in n:
                 assert p.requires_grad
                 params_gen.append(p)
-        params_gen = params_gen + list(vae_b2a.decoder.skip_conv_1.parameters())
-        params_gen = params_gen + list(vae_b2a.decoder.skip_conv_2.parameters())
-        params_gen = params_gen + list(vae_b2a.decoder.skip_conv_3.parameters())
-        params_gen = params_gen + list(vae_b2a.decoder.skip_conv_4.parameters())
+        params_gen.extend(list(vae_b2a.decoder.skip_conv_1.parameters()))
+        params_gen.extend(list(vae_b2a.decoder.skip_conv_2.parameters()))
+        params_gen.extend(list(vae_b2a.decoder.skip_conv_3.parameters()))
+        params_gen.extend(list(vae_b2a.decoder.skip_conv_4.parameters()))
 
         return params_gen
 
@@ -362,9 +378,17 @@ class Diffusion_FFPE(nn.Module):
         batch_size = x.shape[0]
 
         timesteps = torch.tensor([self.timesteps] * batch_size, device=x.device).long()
+
+        # Encode images into latents
         x_enc = self.vae_enc(x, direction=direction).to(x.dtype)
+
+        # Run UNet
         model_pred = self.unet(x_enc, timesteps, encoder_hidden_states=text_emb).sample
+
+        # Scheduler step
         x_out = torch.stack([self.sched.step(model_pred[i], timesteps[i], x_enc[i], return_dict=True).prev_sample
                              for i in range(batch_size)])
+
+        # Decode latents
         x_out_decoded = self.vae_dec(x_out, direction=direction)
         return x_out_decoded

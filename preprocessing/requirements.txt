@@ -1,0 +1,5 @@
+numpy
+cupy-cuda11x
+Pillow
+tqdm
+openslide-python
