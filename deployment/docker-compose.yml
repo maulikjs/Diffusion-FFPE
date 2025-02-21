@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # API and Processing Service
+  wsi-processor:
+    build:
+      context: ..  # Build from project root
+      dockerfile: deployment/Dockerfile
+    image: wsi-processor:latest
+    container_name: wsi-processor
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../data/uploads:/data/uploads
+      - ../data/results:/data/results 
+      - ../checkpoints:/app/checkpoints
+    environment:
+      - CUDA_VISIBLE_DEVICES=0,1,2,3
+      - CHECKPOINT_DIR=/app/checkpoints
+      - UPLOAD_DIR=/data/uploads
+      - RESULTS_DIR=/data/results
+      - MAX_WORKERS=4
+      - GPU_COUNT=4
+    # Using manual device mapping instead of deploy.resources
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidia1:/dev/nvidia1
+      - /dev/nvidia2:/dev/nvidia2
+      - /dev/nvidia3:/dev/nvidia3
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+    restart: unless-stopped
+
+  # Health Monitoring
+  healthcheck:
+    image: busybox
+    depends_on:
+      - wsi-processor
+    command: |
+      /bin/sh -c "
+      while true; do
+        wget -q --spider http://wsi-processor:5000/api/health || echo 'WSI Processor is down!';
+        sleep 60;
+      done
+      "
+
+volumes:
+  uploads:
+  results:
+  checkpoints:
