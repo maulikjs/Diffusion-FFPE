@@ -157,6 +157,9 @@ class ProcessingController:
         """
         Internal method to run the full processing pipeline.
         """
+
+        job_dir = os.path.dirname(final_output_path)
+
         try:
             # Step 1: Preprocessing - Chunk Extraction
             self.update_status(
