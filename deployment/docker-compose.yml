@@ -6,6 +6,7 @@ services:
     build:
       context: ..  # Build from project root
       dockerfile: deployment/Dockerfile
+    shm_size: '16gb'
     image: wsi-processor:latest
     container_name: wsi-processor
     ports:
@@ -15,18 +16,15 @@ services:
       - ../data/results:/data/results 
       - ../checkpoints:/app/checkpoints
     environment:
-      - CUDA_VISIBLE_DEVICES=0,1,2,3
+      - CUDA_VISIBLE_DEVICES=0,1
       - CHECKPOINT_DIR=/app/checkpoints
       - UPLOAD_DIR=/data/uploads
       - RESULTS_DIR=/data/results
-      - MAX_WORKERS=4
-      - GPU_COUNT=4
+      - MAX_WORKERS=2
+      - GPU_COUNT=1
     # Using manual device mapping instead of deploy.resources
     devices:
-      - /dev/nvidia0:/dev/nvidia0
       - /dev/nvidia1:/dev/nvidia1
-      - /dev/nvidia2:/dev/nvidia2
-      - /dev/nvidia3:/dev/nvidia3
       - /dev/nvidiactl:/dev/nvidiactl
       - /dev/nvidia-uvm:/dev/nvidia-uvm
     restart: unless-stopped

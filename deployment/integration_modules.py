@@ -1,9 +1,3 @@
-# Save your first script as chunk_extraction.py
-# Your code from paste.txt with no modifications needed
-
-# Save your second script as stitch_image.py
-# Your code from paste-2.txt with no modifications needed
-
 # Create a simple API wrapper to integrate with your UI
 
 import os

@@ -4,7 +4,13 @@ numpy>=1.20.0
 Pillow>=9.0.0
 tqdm>=4.62.0
 openslide-python>=1.2.0
-cupy-cuda11x>=11.0.0
 tifffile>=2022.5.4
-torchrun
 gunicorn>=20.1.0
+timm
+antialiased_cnns
+gdown
+pyvips
+clean-fid
+transformers
+peft
+diffusers>=0.25.1

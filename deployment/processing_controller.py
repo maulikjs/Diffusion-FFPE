@@ -45,7 +45,7 @@ class ProcessingController:
             "id": "diffusion-ffpe",
             "name": "Diffusion FFPE",
             "checkpoint_path": os.path.join(project_root, "checkpoints/model.pkl"),
-            "script_path": os.path.join(project_root, "inference_ddp.py"),
+            "script_path": os.path.join(project_root, "app/inference_ddp.py"),
             "prompt": "paraffin section",
             "type": "diffusion",
             "params": {}
